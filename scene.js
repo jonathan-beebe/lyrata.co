@@ -822,12 +822,12 @@ function layout() {
 
   // Lens shift: plant on the left third in landscape, low and centred in portrait.
   if (aspect > 1) camera.setViewOffset(w, h, (0.5 - PLANT_SCREEN_X) * w, 0, w, h);
-  else camera.setViewOffset(w, h, 0, -0.13 * h, w, h);
+  else camera.setViewOffset(w, h, 0, -0.08 * h, w, h);
   camera.updateProjectionMatrix();
 
   // The sign hangs on the wall behind the plant, clear of the cove.
   if (aspect > 1) { sign.position.set(1.3, 1.72, -1.15); sign.scale.setScalar(1.8); }
-  else { sign.position.set(0, 2.66, -1.15); sign.scale.setScalar(1.7); }
+  else { sign.position.set(0, 2.52, -1.15); sign.scale.setScalar(1.7); }
 }
 addEventListener('resize', layout);
 layout();
