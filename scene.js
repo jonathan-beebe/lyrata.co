@@ -110,6 +110,76 @@ function buildBackdrop() {
 scene.add(buildBackdrop());
 
 // ---------------------------------------------------------------------------
+// Sign: a painted shingle mounted on the wall behind the plant
+// ---------------------------------------------------------------------------
+
+const SIGN = { w: 500, h: 330, font: '"Libre Baskerville", Georgia, serif' };
+
+// Drawn on a 500 x 330 grid, matching the logo artwork.
+function drawSign(canvas) {
+  const k = canvas.width / SIGN.w;
+  const g = canvas.getContext('2d');
+  g.setTransform(k, 0, 0, k, 0, 0);
+  const paint = '#1c1a17';
+  g.fillStyle = '#f4e6c4';
+  g.fillRect(0, 0, SIGN.w, SIGN.h);
+  g.strokeStyle = paint;
+  g.lineWidth = 4;
+  g.strokeRect(2, 2, SIGN.w - 4, SIGN.h - 4);
+  g.lineWidth = 1.5;
+  g.strokeRect(14.75, 14.75, SIGN.w - 29.5, SIGN.h - 29.5);
+
+  g.fillStyle = paint;
+  g.textAlign = 'center';
+  g.textBaseline = 'alphabetic';
+  const cx = SIGN.w / 2;
+
+  g.font = `84px ${SIGN.font}`;
+  g.fillText('Lyrata', cx, 138);
+
+  g.font = `italic 64px ${SIGN.font}`;
+  const ampW = g.measureText('&').width;
+  g.fillText('&', cx, 212);
+  g.beginPath();
+  g.moveTo(cx - 180, 190); g.lineTo(cx - ampW / 2 - 18, 190);
+  g.moveTo(cx + ampW / 2 + 18, 190); g.lineTo(cx + 180, 190);
+  g.stroke();
+
+  g.font = `29px ${SIGN.font}`;
+  const spacing = 29 * 0.28;
+  if ('letterSpacing' in g) g.letterSpacing = `${spacing}px`;
+  g.fillText('COMPANY', cx + spacing / 2, 258);
+  if ('letterSpacing' in g) g.letterSpacing = '0px';
+}
+
+function buildSign() {
+  const canvas = document.createElement('canvas');
+  canvas.width = SIGN.w * 3;
+  canvas.height = SIGN.h * 3;
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
+  const redraw = () => { drawSign(canvas); tex.needsUpdate = true; };
+  redraw();
+  // Repaint once the web font arrives.
+  Promise.all([
+    document.fonts.load(`84px ${SIGN.font}`),
+    document.fonts.load(`italic 64px ${SIGN.font}`),
+  ]).then(redraw, () => {});
+
+  const edge = new THREE.MeshStandardMaterial({ color: 0x1c1a17, roughness: 0.8 });
+  const face = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.75, envMapIntensity: 0.4 });
+  const mesh = new THREE.Mesh(
+    new THREE.BoxGeometry(1, SIGN.h / SIGN.w, 0.035),
+    [edge, edge, edge, edge, face, edge],
+  );
+  mesh.castShadow = mesh.receiveShadow = true;
+  return mesh;
+}
+const sign = buildSign();
+scene.add(sign);
+
+// ---------------------------------------------------------------------------
 // Pot
 // ---------------------------------------------------------------------------
 
@@ -474,6 +544,10 @@ function layout() {
   if (aspect > 1) camera.setViewOffset(w, h, (0.5 - PLANT_SCREEN_X) * w, 0, w, h);
   else camera.setViewOffset(w, h, 0, -0.13 * h, w, h);
   camera.updateProjectionMatrix();
+
+  // The sign hangs on the wall behind the plant, clear of the cove.
+  if (aspect > 1) { sign.position.set(1.3, 1.72, -1.15); sign.scale.setScalar(1.8); }
+  else { sign.position.set(0.15, 2.5, -1.15); sign.scale.setScalar(1.7); }
 }
 addEventListener('resize', layout);
 layout();
