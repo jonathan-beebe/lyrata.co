@@ -91,6 +91,41 @@ scene.add(rim);
 // Backdrop: floor sweeping up into the wall
 // ---------------------------------------------------------------------------
 
+// Tiling grain for the backdrop: fine speckle over soft mottling.
+function grainTexture() {
+  const size = 512;
+  const c = document.createElement('canvas');
+  c.width = c.height = size;
+  const g = c.getContext('2d');
+
+  const noise = (n, lo, hi) => {
+    const t = document.createElement('canvas');
+    t.width = t.height = n;
+    const tg = t.getContext('2d');
+    const img = tg.createImageData(n, n);
+    for (let i = 0; i < n * n; i++) {
+      const v = lo + Math.random() * (hi - lo);
+      img.data[i * 4] = img.data[i * 4 + 1] = img.data[i * 4 + 2] = v;
+      img.data[i * 4 + 3] = 255;
+    }
+    tg.putImageData(img, 0, 0);
+    return t;
+  };
+
+  g.drawImage(noise(size, 232, 255), 0, 0);
+  g.globalAlpha = 0.12;
+  g.imageSmoothingQuality = 'high';
+  g.drawImage(noise(48, 205, 255), 0, 0, size, size);
+  g.globalAlpha = 1;
+
+  const tex = new THREE.CanvasTexture(c);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
+  return tex;
+}
+
+const GRAIN_TILE = 3; // world units per texture repeat
+
 function buildBackdrop() {
   const wallZ = -1.25, coveR = 0.85, halfW = 40, far = 16;
   const profile = [[far, 0]];
@@ -101,9 +136,12 @@ function buildBackdrop() {
   }
   profile.push([wallZ, far]);
 
-  const pos = [], idx = [];
+  const pos = [], uv = [], idx = [];
+  let run = 0; // distance along the profile, so the grain follows the curve
   profile.forEach(([z, y], j) => {
+    if (j > 0) run += Math.hypot(z - profile[j - 1][0], y - profile[j - 1][1]);
     pos.push(-halfW, y, z, halfW, y, z);
+    uv.push(-halfW / GRAIN_TILE, run / GRAIN_TILE, halfW / GRAIN_TILE, run / GRAIN_TILE);
     if (j < profile.length - 1) {
       const a = j * 2, b = a + 1, c = a + 2, d = a + 3;
       idx.push(a, b, c, b, d, c);
@@ -111,11 +149,16 @@ function buildBackdrop() {
   });
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
   geo.setIndex(idx);
   geo.computeVertexNormals();
 
+  const grain = grainTexture();
+  const colorGrain = grain.clone();
+  colorGrain.colorSpace = THREE.SRGBColorSpace;
   const mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({
-    color: WALL_COLOR, roughness: 0.95, metalness: 0, envMapIntensity: 0.4,
+    color: WALL_COLOR, map: colorGrain, bumpMap: grain, bumpScale: 0.25,
+    roughness: 0.95, metalness: 0, envMapIntensity: 0.4,
   }));
   mesh.receiveShadow = true;
   return mesh;
