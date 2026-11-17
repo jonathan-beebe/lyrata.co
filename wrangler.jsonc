@@ -1,0 +1,9 @@
+{
+  // Static site served by Cloudflare Workers static assets. No Worker script.
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "lyrata-co",
+  "compatibility_date": "2026-11-01",
+  "assets": {
+    "directory": "./public"
+  }
+}
