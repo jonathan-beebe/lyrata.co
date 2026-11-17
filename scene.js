@@ -8,8 +8,8 @@ import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 const WALL_COLOR = 0xf2a02a;
 const FOV = 30;
 const CAMERA_DISTANCE = 4.9;
-const CAMERA_HEIGHT = 1.3;
-const LOOK_AT_HEIGHT = 1.02;
+const CAMERA_HEIGHT = 1.62;
+const LOOK_AT_HEIGHT = 1.0;
 const PLANT_SCREEN_X = 0.28; // plant's horizontal position in landscape, 0..1
 
 const WIND = {
@@ -92,7 +92,7 @@ scene.add(rim);
 // ---------------------------------------------------------------------------
 
 function buildBackdrop() {
-  const wallZ = -1.25, coveR = 1.5, halfW = 40, far = 16;
+  const wallZ = -1.25, coveR = 0.85, halfW = 40, far = 16;
   const profile = [[far, 0]];
   const steps = 24;
   for (let i = 0; i <= steps; i++) {
@@ -121,6 +121,34 @@ function buildBackdrop() {
   return mesh;
 }
 scene.add(buildBackdrop());
+
+// Contact shadow: a soft dark pool where the pot meets the floor.
+function buildContactShadow() {
+  const size = 256;
+  const c = document.createElement('canvas');
+  c.width = c.height = size;
+  const g = c.getContext('2d');
+  const grad = g.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
+  grad.addColorStop(0, 'rgba(255,255,255,1)');
+  grad.addColorStop(0.5, 'rgba(255,255,255,0.95)');
+  grad.addColorStop(0.64, 'rgba(255,255,255,0.42)');
+  grad.addColorStop(0.82, 'rgba(255,255,255,0.1)');
+  grad.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = grad;
+  g.fillRect(0, 0, size, size);
+
+  const mesh = new THREE.Mesh(
+    new THREE.PlaneGeometry(1.16, 1.16),
+    new THREE.MeshBasicMaterial({
+      color: 0x4a1f00, map: new THREE.CanvasTexture(c), transparent: true,
+      opacity: 0.4, depthWrite: false, toneMapped: false,
+    }),
+  );
+  mesh.rotation.x = -Math.PI / 2;
+  mesh.position.y = 0.004;
+  return mesh;
+}
+scene.add(buildContactShadow());
 
 // ---------------------------------------------------------------------------
 // Sign: a painted shingle mounted on the wall behind the plant
@@ -703,7 +731,7 @@ function layout() {
 
   // The sign hangs on the wall behind the plant, clear of the cove.
   if (aspect > 1) { sign.position.set(1.3, 1.72, -1.15); sign.scale.setScalar(1.8); }
-  else { sign.position.set(0.15, 2.66, -1.15); sign.scale.setScalar(1.7); }
+  else { sign.position.set(0, 2.66, -1.15); sign.scale.setScalar(1.7); }
 }
 addEventListener('resize', layout);
 layout();
