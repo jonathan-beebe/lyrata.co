@@ -220,11 +220,50 @@ scene.add(buildPot());
 // Leaves
 // ---------------------------------------------------------------------------
 
-function leafTexture() {
-  const W = 256, H = 512;
+// Leaf maps share one 256 x 512 layout (t = 0 at the bottom), drawn at 2x.
+const LEAF_W = 256, LEAF_H = 512, LEAF_TEX_SCALE = 2;
+
+function leafCanvas() {
   const c = document.createElement('canvas');
-  c.width = W; c.height = H;
+  c.width = LEAF_W * LEAF_TEX_SCALE;
+  c.height = LEAF_H * LEAF_TEX_SCALE;
   const g = c.getContext('2d');
+  g.scale(LEAF_TEX_SCALE, LEAF_TEX_SCALE);
+  g.lineCap = 'round';
+  return [c, g];
+}
+
+function leafMap(canvas, srgb) {
+  const tex = new THREE.CanvasTexture(canvas);
+  if (srgb) tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 8;
+  return tex;
+}
+
+// Texture detail uses its own generator so it never shifts the plant's shape.
+let texSeed = 42;
+function texRand() {
+  texSeed = (texSeed * 1664525 + 1013904223) >>> 0;
+  return texSeed / 4294967296;
+}
+
+// Paths for the primary lateral veins, shared by every map.
+function traceLaterals(g, each) {
+  const W = LEAF_W, H = LEAF_H;
+  for (let k = 0; k < 9; k++) {
+    const y0 = H * (0.95 - k * 0.1);
+    for (const s of [-1, 1]) {
+      g.beginPath();
+      g.moveTo(W / 2, y0);
+      g.quadraticCurveTo(W / 2 + s * 70, y0 - 14, W / 2 + s * 128, y0 - 78);
+      each();
+    }
+  }
+}
+
+function leafTexture() {
+  const W = LEAF_W, H = LEAF_H;
+  const [c, g] = leafCanvas();
 
   const base = g.createLinearGradient(0, 0, W, 0);
   base.addColorStop(0, '#16301b');
@@ -264,17 +303,83 @@ function leafTexture() {
   g.lineTo(W / 2 + 1, 0); g.lineTo(W / 2 - 1, 0);
   g.fill();
 
-  const tex = new THREE.CanvasTexture(c);
-  tex.colorSpace = THREE.SRGBColorSpace;
-  tex.anisotropy = 8;
-  return tex;
+  return leafMap(c, true);
+}
+
+// Height map: veins sit in grooves and the blade puffs up between them.
+function leafBumpTexture() {
+  const W = LEAF_W, H = LEAF_H;
+  const [c, g] = leafCanvas();
+  g.fillStyle = '#9a9a9a';
+  g.fillRect(0, 0, W, H);
+
+  // soft grooves: stacked strokes fake a blur
+  for (const [width, alpha] of [[26, 0.05], [18, 0.06], [11, 0.08], [6, 0.1], [2.5, 0.16]]) {
+    g.strokeStyle = `rgba(0,0,0,${alpha})`;
+    g.lineWidth = width;
+    traceLaterals(g, () => g.stroke());
+    g.lineWidth = width * 1.3;
+    g.beginPath(); g.moveTo(W / 2, H); g.lineTo(W / 2, 0); g.stroke();
+  }
+  // fine vein network
+  g.lineWidth = 0.7;
+  for (let i = 0; i < 520; i++) {
+    const x = texRand() * W, y = texRand() * H, a = texRand() * Math.PI;
+    const len = 5 + texRand() * 12;
+    g.strokeStyle = `rgba(0,0,0,${0.05 + texRand() * 0.07})`;
+    g.beginPath();
+    g.moveTo(x, y);
+    g.lineTo(x + Math.cos(a) * len, y + Math.sin(a) * len);
+    g.stroke();
+  }
+  // pores and pitting
+  for (let i = 0; i < 2600; i++) {
+    g.fillStyle = texRand() < 0.5 ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)';
+    g.fillRect(texRand() * W, texRand() * H, 1 + texRand() * 1.6, 1 + texRand() * 1.6);
+  }
+  return leafMap(c, false);
+}
+
+// Roughness map: a waxy cuticle that is worn unevenly, duller in the grooves.
+function leafRoughnessTexture() {
+  const W = LEAF_W, H = LEAF_H;
+  const [c, g] = leafCanvas();
+  g.fillStyle = '#b4b4b4';
+  g.fillRect(0, 0, W, H);
+
+  for (let i = 0; i < 90; i++) {
+    const x = texRand() * W, y = texRand() * H, r = 14 + texRand() * 40;
+    const v = texRand() < 0.5 ? 255 : 60;
+    const blot = g.createRadialGradient(x, y, 0, x, y, r);
+    blot.addColorStop(0, `rgba(${v},${v},${v},0.16)`);
+    blot.addColorStop(1, `rgba(${v},${v},${v},0)`);
+    g.fillStyle = blot;
+    g.fillRect(x - r, y - r, r * 2, r * 2);
+  }
+  for (const [width, alpha] of [[12, 0.07], [6, 0.1], [2.5, 0.14]]) {
+    g.strokeStyle = `rgba(255,255,255,${alpha})`;
+    g.lineWidth = width;
+    traceLaterals(g, () => g.stroke());
+    g.beginPath(); g.moveTo(W / 2, H); g.lineTo(W / 2, 0); g.stroke();
+  }
+  for (let i = 0; i < 2200; i++) {
+    g.fillStyle = texRand() < 0.5 ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)';
+    g.fillRect(texRand() * W, texRand() * H, 1 + texRand() * 2, 1 + texRand() * 2);
+  }
+  return leafMap(c, false);
 }
 
 const leafMaterial = new THREE.MeshPhysicalMaterial({
   map: leafTexture(),
-  roughness: 0.4,
-  clearcoat: 0.55,
-  clearcoatRoughness: 0.22,
+  bumpMap: leafBumpTexture(),
+  bumpScale: 2.2,
+  roughnessMap: leafRoughnessTexture(),
+  roughness: 0.7,
+  specularIntensity: 0.8,
+  sheen: 0.1,
+  sheenRoughness: 0.55,
+  sheenColor: new THREE.Color(0x8fae6a),
+  envMapIntensity: 0.7,
   side: THREE.DoubleSide,
 });
 
