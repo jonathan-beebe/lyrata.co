@@ -39,7 +39,9 @@ const canvas = document.getElementById('scene');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.VSMShadowMap;
+// Percentage-closer filtering. Variance shadow maps blur further, but they
+// leak light wherever one shadow crosses another.
+renderer.shadowMap.type = THREE.PCFShadowMap;
 renderer.toneMapping = THREE.NeutralToneMapping;
 renderer.toneMappingExposure = 1.0;
 
@@ -65,9 +67,9 @@ key.castShadow = true;
 key.shadow.mapSize.set(2048, 2048);
 key.shadow.camera.near = 2;
 key.shadow.camera.far = 16;
-key.shadow.bias = -0.0002;
+key.shadow.bias = -0.0012;
+key.shadow.normalBias = 0.045;
 key.shadow.radius = 5;
-key.shadow.blurSamples = 16;
 scene.add(key, key.target);
 
 // Fill light from the right: a second, fainter shadow falls to the plant's left.
@@ -75,12 +77,12 @@ const fill = new THREE.SpotLight(0xffe6c8, 2.3, 0, 0.75, 1, 0);
 fill.position.set(4.6, 2.5, 4.0);
 fill.target.position.set(-0.4, 1.0, -0.4);
 fill.castShadow = true;
-fill.shadow.mapSize.set(1024, 1024);
+fill.shadow.mapSize.set(2048, 2048);
 fill.shadow.camera.near = 2;
 fill.shadow.camera.far = 16;
-fill.shadow.bias = -0.0002;
+fill.shadow.bias = -0.0012;
+fill.shadow.normalBias = 0.045;
 fill.shadow.radius = 5;
-fill.shadow.blurSamples = 20;
 scene.add(fill, fill.target);
 
 const rim = new THREE.DirectionalLight(0xffe2b0, 0.5);
@@ -492,6 +494,7 @@ function leafRoughnessTexture() {
 }
 
 const leafMaterial = new THREE.MeshPhysicalMaterial({
+  color: new THREE.Color().setScalar(1.5), // brightness multiplier on the leaf map
   map: leafTexture(),
   bumpMap: leafBumpTexture(),
   bumpScale: 2.2,
