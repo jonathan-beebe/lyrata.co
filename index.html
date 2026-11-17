@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>lyrata</title>
+<meta name="description" content="lyrata — Ficus lyrata, the fiddle-leaf fig.">
+<meta name="theme-color" content="#f0a22e">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='18' fill='%23f0a22e'/%3E%3Cpath d='M50 90C28 78 22 60 34 46c-8-14 0-32 16-36 16 4 24 22 16 36 12 14 6 32-16 44z' fill='%231b3a22'/%3E%3Cpath d='M50 88V14' stroke='%239db35a' stroke-width='3'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="style.css">
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+  }
+}
+</script>
+</head>
+<body>
+<canvas id="scene" aria-hidden="true"></canvas>
+
+<div id="loader" role="status">
+  <div class="loader-box">
+    <div class="loader-title">lyrata.co</div>
+    <div class="loader-bar"><span></span></div>
+    <div class="loader-text">Loading<span class="blink">_</span></div>
+  </div>
+</div>
+
+<main class="ui">
+  <header class="top">
+    <span>lyrata.co</span>
+    <span>est. 2026</span>
+  </header>
+
+  <section class="hero">
+    <h1>lyrata</h1>
+    <hr>
+    <p class="latin"><i>Ficus lyrata</i> &mdash; the fiddle-leaf fig</p>
+    <p class="hint"><span class="blink">&#9658;</span> <span class="hint-mouse">move your mouse</span><span class="hint-touch">drag your finger</span> across the leaves to stir a breeze</p>
+  </section>
+
+  <footer class="status">
+    <div class="cell marquee" aria-hidden="true">
+      <div class="marquee-track">
+        <span>welcome to lyrata.co &#10022; ficus lyrata &#10022; this site is under cultivation &#10022; rendered live in your browser &#10022;&nbsp;</span>
+        <span>welcome to lyrata.co &#10022; ficus lyrata &#10022; this site is under cultivation &#10022; rendered live in your browser &#10022;&nbsp;</span>
+      </div>
+    </div>
+    <div class="cell badge">WebGL <b>NOW!</b></div>
+    <div class="cell badge alt">best viewed<br>with a breeze</div>
+    <div class="cell copy">&copy; 2026 lyrata</div>
+  </footer>
+</main>
+
+<noscript><p class="noscript">lyrata &mdash; <i>Ficus lyrata</i>, the fiddle-leaf fig.</p></noscript>
+<script type="module" src="scene.js"></script>
+</body>
+</html>
