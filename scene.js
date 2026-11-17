@@ -309,20 +309,70 @@ scene.add(sign);
 
 const POT = { height: 0.66, rBottom: 0.3, rTop: 0.4, soilY: 0.6 };
 
+// Clay surface: fine grit, a few pits, and faint rings left by the wheel.
+// Returns a height map and a matching colour speckle.
+function clayTextures() {
+  const size = 512;
+  const make = (base, spread, ringAlpha, pitAlpha) => {
+    const c = document.createElement('canvas');
+    c.width = c.height = size;
+    const g = c.getContext('2d');
+    const img = g.createImageData(size, size);
+    for (let i = 0; i < size * size; i++) {
+      const v = base + (Math.random() - 0.5) * spread;
+      img.data[i * 4] = img.data[i * 4 + 1] = img.data[i * 4 + 2] = v;
+      img.data[i * 4 + 3] = 255;
+    }
+    g.putImageData(img, 0, 0);
+    // throwing rings run around the pot, so they are horizontal bands here
+    for (let y = 0; y < size; y += 3 + Math.random() * 9) {
+      g.fillStyle = `rgba(${Math.random() < 0.5 ? '0,0,0' : '255,255,255'},${ringAlpha * Math.random()})`;
+      g.fillRect(0, y, size, 1 + Math.random() * 3);
+    }
+    for (let i = 0; i < 260; i++) {
+      g.fillStyle = `rgba(0,0,0,${pitAlpha * Math.random()})`;
+      g.beginPath();
+      g.arc(Math.random() * size, Math.random() * size, 0.6 + Math.random() * 1.6, 0, Math.PI * 2);
+      g.fill();
+    }
+    const tex = new THREE.CanvasTexture(c);
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+    tex.anisotropy = 8;
+    return tex;
+  };
+  const bump = make(150, 60, 0.22, 0.5);
+  const color = make(240, 22, 0.05, 0.12);
+  color.colorSpace = THREE.SRGBColorSpace;
+  return { bump, color };
+}
+
 function buildPot() {
   const { height: h, rBottom: rb, rTop: rt, soilY } = POT;
   const group = new THREE.Group();
+  const clay = clayTextures();
   const pts = [
     [0, 0], [rb - 0.012, 0], [rb, 0.012], [rt, h - 0.012],
     [rt + 0.012, h - 0.004], [rt + 0.012, h + 0.006], [rt - 0.004, h + 0.008],
     [rt - 0.012, h - 0.01], [rt - 0.02, soilY - 0.02],
   ].map(([x, y]) => new THREE.Vector2(x, y));
 
+  // Lathe UVs space the profile points evenly. Re-map them by distance along
+  // the profile so the clay grain keeps its proportions on the tall wall.
+  const SEGMENTS = 72, AROUND = 2;
+  const potGeo = new THREE.LatheGeometry(pts, SEGMENTS);
+  const tile = (2 * Math.PI * (rb + rt) / 2) / AROUND; // world size of one repeat
+  const run = [0];
+  for (let j = 1; j < pts.length; j++) run.push(run[j - 1] + pts[j].distanceTo(pts[j - 1]));
+  const potUv = potGeo.attributes.uv;
+  for (let i = 0; i <= SEGMENTS; i++) for (let j = 0; j < pts.length; j++) {
+    potUv.setXY(i * pts.length + j, (i / SEGMENTS) * AROUND, run[j] / tile);
+  }
+
   const body = new THREE.Mesh(
-    new THREE.LatheGeometry(pts, 72),
-    new THREE.MeshPhysicalMaterial({
-      color: 0xf6e7c3, roughness: 0.42, clearcoat: 0.35, clearcoatRoughness: 0.4,
-      side: THREE.DoubleSide,
+    potGeo,
+    new THREE.MeshStandardMaterial({
+      color: 0xf6e7c3, map: clay.color, bumpMap: clay.bump, bumpScale: 0.9,
+      roughness: 0.86, side: THREE.DoubleSide,
     }),
   );
   body.castShadow = body.receiveShadow = true;
