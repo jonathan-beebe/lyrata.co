@@ -56,9 +56,9 @@ const camera = new THREE.PerspectiveCamera(FOV, 1, 0.1, 100);
 // Lights. The key light casts the shadows that land on the backdrop.
 // ---------------------------------------------------------------------------
 
-scene.add(new THREE.HemisphereLight(0xfff0d8, 0xe89a30, 1.15));
+scene.add(new THREE.HemisphereLight(0xfff0d8, 0xe89a30, 0.6));
 
-const key = new THREE.SpotLight(0xfff4e2, 3.4, 0, 0.66, 0.95, 0);
+const key = new THREE.SpotLight(0xfff4e2, 3.0, 0, 0.66, 0.95, 0);
 key.position.set(-4.2, 3.1, 4.6);
 key.target.position.set(0.5, 1.0, -0.4);
 key.castShadow = true;
@@ -69,6 +69,19 @@ key.shadow.bias = -0.0002;
 key.shadow.radius = 5;
 key.shadow.blurSamples = 16;
 scene.add(key, key.target);
+
+// Fill light from the right: a second, fainter shadow falls to the plant's left.
+const fill = new THREE.SpotLight(0xffe6c8, 2.3, 0, 0.75, 1, 0);
+fill.position.set(4.6, 2.5, 4.0);
+fill.target.position.set(-0.4, 1.0, -0.4);
+fill.castShadow = true;
+fill.shadow.mapSize.set(1024, 1024);
+fill.shadow.camera.near = 2;
+fill.shadow.camera.far = 16;
+fill.shadow.bias = -0.0002;
+fill.shadow.radius = 5;
+fill.shadow.blurSamples = 20;
+scene.add(fill, fill.target);
 
 const rim = new THREE.DirectionalLight(0xffe2b0, 0.5);
 rim.position.set(4, 3, -0.5);
@@ -690,7 +703,7 @@ function layout() {
 
   // The sign hangs on the wall behind the plant, clear of the cove.
   if (aspect > 1) { sign.position.set(1.3, 1.72, -1.15); sign.scale.setScalar(1.8); }
-  else { sign.position.set(0.15, 2.5, -1.15); sign.scale.setScalar(1.7); }
+  else { sign.position.set(0.15, 2.66, -1.15); sign.scale.setScalar(1.7); }
 }
 addEventListener('resize', layout);
 layout();
