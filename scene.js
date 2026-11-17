@@ -14,8 +14,8 @@ const PLANT_SCREEN_X = 0.28; // plant's horizontal position in landscape, 0..1
 
 const WIND = {
   radius: 0.26,        // pointer reach, in viewport heights
-  gain: 3.6,           // pointer travel -> gust
-  maxGust: 1.0,
+  gain: 1.9,           // pointer travel -> gust
+  maxGust: 0.75,
   decay: 2.0,          // gust decay rate, 1/s
   ambient: 0.07,       // idle breeze strength
 };
@@ -115,7 +115,35 @@ scene.add(buildBackdrop());
 
 const SIGN = { w: 500, h: 330, font: '"Libre Baskerville", Georgia, serif' };
 
-// Drawn on a 500 x 330 grid, matching the logo artwork.
+// Lettering and rules on a 500 x 330 grid, in the current fill and stroke.
+function signLettering(g, dx = 0, dy = 0) {
+  g.textAlign = 'center';
+  g.textBaseline = 'alphabetic';
+  g.lineWidth = 1.5;
+  const cx = SIGN.w / 2 + dx;
+
+  g.font = `84px ${SIGN.font}`;
+  g.fillText('Lyrata', cx, 126 + dy);
+
+  g.font = `italic 64px ${SIGN.font}`;
+  const ampW = g.measureText('&').width;
+  g.fillText('&', cx, 200 + dy);
+  g.beginPath();
+  g.moveTo(cx - 180, 178 + dy); g.lineTo(cx - ampW / 2 - 18, 178 + dy);
+  g.moveTo(cx + ampW / 2 + 18, 178 + dy); g.lineTo(cx + 180, 178 + dy);
+  g.stroke();
+
+  const spaced = (text, size, y) => {
+    g.font = `${size}px ${SIGN.font}`;
+    const spacing = size * (size > 20 ? 0.28 : 0.24);
+    if ('letterSpacing' in g) g.letterSpacing = `${spacing}px`;
+    g.fillText(text, cx + spacing / 2, y + dy);
+    if ('letterSpacing' in g) g.letterSpacing = '0px';
+  };
+  spaced('COMPANY', 29, 246);
+  spaced('ESTABLISHED 2026', 13, 296);
+}
+
 function drawSign(canvas) {
   const k = canvas.width / SIGN.w;
   const g = canvas.getContext('2d');
@@ -129,27 +157,26 @@ function drawSign(canvas) {
   g.lineWidth = 1.5;
   g.strokeRect(14.75, 14.75, SIGN.w - 29.5, SIGN.h - 29.5);
 
-  g.fillStyle = paint;
-  g.textAlign = 'center';
-  g.textBaseline = 'alphabetic';
-  const cx = SIGN.w / 2;
+  // Lit lower-right lip of each cut, then the painted floor of the cut.
+  g.fillStyle = g.strokeStyle = 'rgba(255, 252, 240, 0.9)';
+  signLettering(g, 0.9, 1.0);
+  g.fillStyle = g.strokeStyle = paint;
+  signLettering(g);
+}
 
-  g.font = `84px ${SIGN.font}`;
-  g.fillText('Lyrata', cx, 138);
-
-  g.font = `italic 64px ${SIGN.font}`;
-  const ampW = g.measureText('&').width;
-  g.fillText('&', cx, 212);
-  g.beginPath();
-  g.moveTo(cx - 180, 190); g.lineTo(cx - ampW / 2 - 18, 190);
-  g.moveTo(cx + ampW / 2 + 18, 190); g.lineTo(cx + 180, 190);
-  g.stroke();
-
-  g.font = `29px ${SIGN.font}`;
-  const spacing = 29 * 0.28;
-  if ('letterSpacing' in g) g.letterSpacing = `${spacing}px`;
-  g.fillText('COMPANY', cx + spacing / 2, 258);
-  if ('letterSpacing' in g) g.letterSpacing = '0px';
+// Height map: lettering is cut into the board, with soft shoulders.
+function drawSignBump(canvas) {
+  const k = canvas.width / SIGN.w;
+  const g = canvas.getContext('2d');
+  g.setTransform(k, 0, 0, k, 0, 0);
+  g.shadowColor = 'transparent';
+  g.fillStyle = '#fff';
+  g.fillRect(0, 0, SIGN.w, SIGN.h);
+  g.fillStyle = g.strokeStyle = '#000';
+  g.shadowColor = '#000';
+  g.shadowBlur = 1.1 * k;
+  signLettering(g);
+  g.shadowColor = 'transparent';
 }
 
 function buildSign() {
@@ -159,16 +186,27 @@ function buildSign() {
   const tex = new THREE.CanvasTexture(canvas);
   tex.colorSpace = THREE.SRGBColorSpace;
   tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
-  const redraw = () => { drawSign(canvas); tex.needsUpdate = true; };
+  const bumpCanvas = document.createElement('canvas');
+  bumpCanvas.width = canvas.width;
+  bumpCanvas.height = canvas.height;
+  const bump = new THREE.CanvasTexture(bumpCanvas);
+  bump.anisotropy = tex.anisotropy;
+  const redraw = () => {
+    drawSign(canvas); tex.needsUpdate = true;
+    drawSignBump(bumpCanvas); bump.needsUpdate = true;
+  };
   redraw();
   // Repaint once the web font arrives.
   Promise.all([
     document.fonts.load(`84px ${SIGN.font}`),
     document.fonts.load(`italic 64px ${SIGN.font}`),
+    document.fonts.load(`13px ${SIGN.font}`),
   ]).then(redraw, () => {});
 
   const edge = new THREE.MeshStandardMaterial({ color: 0x1c1a17, roughness: 0.8 });
-  const face = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.75, envMapIntensity: 0.4 });
+  const face = new THREE.MeshStandardMaterial({
+    map: tex, bumpMap: bump, bumpScale: 4, roughness: 0.75, envMapIntensity: 0.4,
+  });
   const mesh = new THREE.Mesh(
     new THREE.BoxGeometry(1, SIGN.h / SIGN.w, 0.035),
     [edge, edge, edge, edge, face, edge],
