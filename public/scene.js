@@ -309,6 +309,13 @@ scene.add(sign);
 
 const POT = { height: 0.66, rBottom: 0.3, rTop: 0.4, soilY: 0.6 };
 
+// Environment reflection on the pot: strength at the rim and at the base, the
+// colour and strength of the floor's bounce glow on the lower wall, and how
+// much colour is removed from the environment's diffuse light (0..1).
+const POT_REFLECTION = {
+  top: 0.3, base: 3.0, glowColor: 0xffcc4d, glow: 0.85, glowHeight: 0.6, diffuseNeutral: 1.0,
+};
+
 // Clay surface: fine grit, a few pits, and faint rings left by the wheel.
 // Returns a height map and a matching colour speckle.
 function clayTextures() {
@@ -346,6 +353,38 @@ function clayTextures() {
   return { bump, color };
 }
 
+// What the pot reflects: the orange backdrop behind, beside and below it, a
+// dim neutral studio on the camera side, plus a soft panel where each
+// shadow-casting light sits.
+function potEnvironment() {
+  const env = new THREE.Scene();
+  const side = (color) => new THREE.MeshBasicMaterial({ color, side: THREE.BackSide });
+  const wall = side(WALL_COLOR);
+  // box faces: +x, -x, +y, -y, +z (camera side), -z (wall)
+  env.add(new THREE.Mesh(
+    new THREE.BoxGeometry(20, 20, 20),
+    [wall, wall, side(0x9a9184), wall, side(0x6f695f), wall],
+  ));
+  // The floor fills everything below the horizon, as it does around the pot.
+  const floor = new THREE.Mesh(
+    new THREE.PlaneGeometry(20, 20),
+    new THREE.MeshBasicMaterial({ color: WALL_COLOR }),
+  );
+  floor.rotation.x = -Math.PI / 2;
+  floor.position.y = -0.3;
+  env.add(floor);
+  for (const light of [key, fill]) {
+    const panel = new THREE.Mesh(
+      new THREE.PlaneGeometry(3.5, 3.5),
+      new THREE.MeshBasicMaterial({ color: light.color.clone().multiplyScalar(light.intensity * 1.5) }),
+    );
+    panel.position.copy(light.position);
+    panel.lookAt(0, POT.height / 2, 0);
+    env.add(panel);
+  }
+  return pmrem.fromScene(env, 0.03).texture;
+}
+
 function buildPot() {
   const { height: h, rBottom: rb, rTop: rt, soilY } = POT;
   const group = new THREE.Group();
@@ -368,13 +407,43 @@ function buildPot() {
     potUv.setXY(i * pts.length + j, (i / SEGMENTS) * AROUND, run[j] / tile);
   }
 
-  const body = new THREE.Mesh(
-    potGeo,
-    new THREE.MeshStandardMaterial({
-      color: 0xf6e7c3, map: clay.color, bumpMap: clay.bump, bumpScale: 0.9,
-      roughness: 0.86, side: THREE.DoubleSide,
-    }),
-  );
+  const glaze = new THREE.MeshPhysicalMaterial({
+    color: 0xf6e7c3, map: clay.color, bumpMap: clay.bump, bumpScale: 0.9,
+    roughness: 0.7, side: THREE.DoubleSide,
+    envMap: potEnvironment(), envMapIntensity: 1,
+    ior: 1.7, clearcoat: 0.8, clearcoatRoughness: 0.18,
+  });
+  // The body stays beige: the environment's diffuse light is drained of colour.
+  // Its orange arrives through the reflections, which strengthen toward the base.
+  const tint = new THREE.Color(POT_REFLECTION.glowColor);
+  glaze.onBeforeCompile = (shader) => {
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nvarying float vPotY;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvPotY = position.y;');
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', '#include <common>\nvarying float vPotY;')
+      .replace('#include <lights_fragment_maps>', `#include <lights_fragment_maps>
+        iblIrradiance = mix( iblIrradiance, vec3( luminance( iblIrradiance ) ), ${POT_REFLECTION.diffuseNeutral.toFixed(2)} );
+        float potBase = 1.0 - smoothstep( 0.0, ${h.toFixed(3)}, vPotY );
+        float potReflect = mix( ${POT_REFLECTION.top.toFixed(2)}, ${POT_REFLECTION.base.toFixed(2)}, potBase * sqrt( potBase ) );
+        radiance *= potReflect;
+        clearcoatRadiance *= potReflect;`)
+      // Bounce glow from the floor. Adding light washes a pale surface toward
+      // white, so the glow shifts hue at constant brightness. It is strongest
+      // low on the wall and toward the silhouette, where the surface turns
+      // away from the lights and toward the backdrop.
+      .replace('#include <opaque_fragment>', `
+        vec3 potTint = vec3( ${tint.r.toFixed(3)}, ${tint.g.toFixed(3)}, ${tint.b.toFixed(3)} );
+        float potGlow = 1.0 - smoothstep( 0.0, ${(h * POT_REFLECTION.glowHeight).toFixed(3)}, vPotY );
+        float potEdge = pow( 1.0 - saturate( dot( normal, geometryViewDir ) ), 2.0 );
+        float potAmount = saturate( ${POT_REFLECTION.glow.toFixed(2)} * potGlow * potGlow * ( 0.6 + 0.8 * potEdge ) );
+        vec3 potLit = outgoingLight * potTint;
+        potLit *= luminance( outgoingLight ) / max( luminance( potLit ), 1e-4 );
+        outgoingLight = mix( outgoingLight, potLit, potAmount );
+        #include <opaque_fragment>`);
+  };
+  glaze.customProgramCacheKey = () => 'pot-glaze';
+  const body = new THREE.Mesh(potGeo, glaze);
   body.castShadow = body.receiveShadow = true;
 
   const soil = new THREE.Mesh(
